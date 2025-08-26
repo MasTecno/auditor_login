@@ -38,73 +38,85 @@ $stmt->bind_param("ss", $email, $password);
 $stmt->execute();
 $result = $stmt->get_result();
 
-if ($result->num_rows === 0) {
-    echo json_encode([
-        "error" => true,
-        "message" => "Usuario o contraseña incorrectos"
-    ]);
-    exit;
-}
+// if ($result->num_rows === 0) {
+//     echo json_encode([
+//         "error" => true,
+//         "message" => "Usuario o contraseña incorrectos"
+//     ]);
+//     exit;
+// }
 
-while ($usuario = $result->fetch_assoc()) {
-    $_SESSION["usuario"] = $usuario["nombre"] . " " . $usuario["ape_paterno"];
-    $_SESSION["email"] = $usuario["email"];
+// while ($usuario = $result->fetch_assoc()) {
+//     $_SESSION["usuario"] = $usuario["nombre"] . " " . $usuario["ape_paterno"];
+//     $_SESSION["email"] = $usuario["email"];
     
-    echo json_encode([
-        "success" => true,
-        "message" => "Autenticación exitosa"
-    ]);
-    exit;
+//     echo json_encode([
+//         "success" => true,
+//         "message" => "Autenticación exitosa"
+//     ]);
+//     exit;
+// }
+
+$sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' 
+AND COLUMN_NAME LIKE 'nom_bd_%'";
+
+$stmt = $conn->prepare($sql);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$sufijos = [];
+while ($col = $result->fetch_assoc()) {
+    $nombre = str_replace("nom_bd_", "", $col["COLUMN_NAME"]);
+    $sufijos[] = $nombre;
 }
 
-// $sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' 
-// AND COLUMN_NAME LIKE 'nom_bd_%'";
+// print_r($sufijos);
 
-// $stmt = $conn->prepare($sql);
-// $stmt->execute();
-// $result = $stmt->get_result();
+$conexion_bases = [];
 
-// $sufijos = [];
-// while ($col = $result->fetch_assoc()) {
-//     $nombre = str_replace("nom_bd_", "", $col["COLUMN_NAME"]);
-//     $sufijos[] = $nombre;
-// }
+foreach ($sufijos as $sufijo) {
+    $sql = "SELECT nom_bd_{$sufijo} FROM users WHERE nombre = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $servidor);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-// // print_r($sufijos);
+    while ($row = $result->fetch_assoc()) {
+        $nombre_bd = $row["nom_bd_" . $sufijo];
+        // echo "Conectando a base: $nombre_bd<br>";
 
-// $conexion_bases = [];
+        $conexion = new mysqli(DB_HOST, $usuario_bd, $password_bd, $nombre_bd);
 
-// foreach ($sufijos as $sufijo) {
-//     $sql = "SELECT nom_bd_{$sufijo} FROM users WHERE nombre = ?";
-//     $stmt = $conn->prepare($sql);
-//     $stmt->bind_param("s", $servidor);
-//     $stmt->execute();
-//     $result = $stmt->get_result();
+        if ($conexion->connect_error) {
+            continue;
+        }
 
-//     while ($row = $result->fetch_assoc()) {
-//         $nombre_bd = $row["nom_bd_" . $sufijo];
-//         // echo "Conectando a base: $nombre_bd<br>";
+        $sql = "SELECT * FROM usuarios WHERE email = ? AND password = ?";
+        $stmt = $conexion->prepare($sql);
+        $stmt->bind_param("ss", $email, $password);
+        $stmt->execute();
+        $result = $stmt->get_result();
 
-//         $conexion = new mysqli(DB_HOST, $usuario_bd, $password_bd, $nombre_bd);
+        if ($result->num_rows === 0) {
+            echo json_encode([
+                "error" => true,
+                "message" => "Usuario o contraseña incorrectos"
+            ]);
+            exit;
+        }
 
-//         if ($conexion->connect_error) {
-//             die("Conexión fallida a $nombre_bd: " . $conexion->connect_error);
-//         } else {
-//             echo "Conexión exitosa a $nombre_bd<br>";
-//         }
-
-//         $sql = "SELECT * FROM usuarios WHERE email = ? AND password = ?";
-//         $stmt = $conexion->prepare($sql);
-//         $stmt->bind_param("ss", $email, $password);
-//         $stmt->execute();
-//         $result = $stmt->get_result();
-//         while ($usuario = $result->fetch_assoc()) {
-//             echo "<pre>";
-//             print_r($usuario);
-//             echo "</pre>";
-//         }
-//     }
-// }
+        while ($usuario = $result->fetch_assoc()) {
+            $_SESSION["usuario"] = $usuario["nombre"] . " " . $usuario["ape_paterno"];
+            $_SESSION["email"] = $usuario["email"];
+                
+            echo json_encode([
+                "success" => true,
+                "message" => "Autenticación exitosa"
+            ]);
+            exit;
+        }
+    }
+}
 
 
 
